@@ -5,29 +5,29 @@ import parser
 
 class Void:
 	pass
-	
+
 class Int:
 	pass
 
 class Args:
 	def __init__(self, args_array):
 		self.args = args_array
-		
+
 	def __str__(self):
 		q = ''
 		for i in self.args:
 			print(str(i))
 			q += str(i)
 		return q
-		
+
 class Lookup:
 	def __init__(self, name):
 		self.name = name
 		self.type = parser.index[name].type
-		
+
 	def __str__(self):
 		return self.name
-		
+
 	def eval(self):
 		gen_lookup(self.name)
 
@@ -42,7 +42,19 @@ class Function:
 			self.return_type = ret
 			self.__ret = False
 		self.type = 'Function' # 'Function' type
-		
+
+	def get_last(self):
+		try:
+			return self.body[-1]
+		except:
+			return None
+
+	def set_last(self, last):
+		self.body[-1] = last
+
+	def remove_last(self):
+		self.body = self.body[:-1]
+
 	def find_ret_type(self, body):
 		try:
 			ret_type = body[-1].type
@@ -50,51 +62,53 @@ class Function:
 			ret_type = 'void'
 		return ret_type
 		# TODO expand
-		
+
 	def append(self, statement):
 		self.body.append(statement)
 		if self.__ret:
 			self.return_type = self.find_ret_type(self.body)
 		return self
-		
+
 	def eval(self):
 		gen_block(self.body)
-		
+
 class Definition:
-	def __init__(self, name, value):
+	def __init__(self, name, value, val):
 		self.name = name
 		self.value = value
 		self.type = value.type
+		self.val = val
 		parser.index[name] = value
-		
+		parser.vals[name] = val
+
 	def eval(self):
-		gen_define(self.name, self.value)
-		
+		gen_define(self.name, self.value, self.val)
+
 class Assignment:
 	def __init__(self, name, value):
 		self.name = name
 		self.value = value
 		self.type = value.type
-		
+
 	def eval(self):
 		gen_assign(self.name, self.value)
-		
+
 class LiteralInt:
 	def __init__(self, value):
 		self.value = value
 		self.type = 'Int'
-		
+
 	def eval(self):
 		gen_literal(self.value)
-		
+
 class LiteralFloat:
 	def __init__(self, value):
 		self.value = value
 		self.type = 'Float'
-		
+
 	def eval(self):
 		gen_literal(self.value)
-		
+
 class Call:
 	def __init__(self, subject, callee, args):
 		self.callee = callee
@@ -111,21 +125,21 @@ class Call:
 			else:
 				nsubject = parser.index[nsubject].type
 		self.type = parser.rets[nsubject + ' ' + callee]
-		
+
 	def eval(self):
 		gen_call(self.subject, self.callee, self.args)
-	
+
 class Program: # Top level
 	def __init__(self, array_of_instructions):
 		self.body = array_of_instructions
-		
+
 	def append(self, statement):
 		self.body.append(statement)
 		return self
-		
+
 	def __getitem__(self, index):
 		return self.body[index]
-		
+
 	def eval(self, repl=False):
 		gen_init(repl)
 		for i in self.body:

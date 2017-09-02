@@ -3,7 +3,12 @@
 
 import sys
 import parser
+import ast
+import codegen
 from subprocess import call
+import os
+
+codegen.path = os.path.dirname(os.path.realpath(__file__))
 
 verbose = False
 run = True
@@ -22,33 +27,54 @@ try:
 		args = args[1:]
 except IndexError:
 	print('Welcome to the Rhea REPL!')
-	print r'''____/\\\\\\\\\______/\\\________/\\\__/\\\\\\\\\\\\\\\_____/\\\\\\\\\____        
- __/\\\///////\\\___\/\\\_______\/\\\_\/\\\///////////____/\\\\\\\\\\\\\__       
-  _\/\\\_____\/\\\___\/\\\_______\/\\\_\/\\\______________/\\\/////////\\\_      
-   _\/\\\\\\\\\\\/____\/\\\\\\\\\\\\\\\_\/\\\\\\\\\\\_____\/\\\_______\/\\\_     
-    _\/\\\//////\\\____\/\\\/////////\\\_\/\\\///////______\/\\\\\\\\\\\\\\\_    
-     _\/\\\____\//\\\___\/\\\_______\/\\\_\/\\\_____________\/\\\/////////\\\_   
-      _\/\\\_____\//\\\__\/\\\_______\/\\\_\/\\\_____________\/\\\_______\/\\\_  
-       _\/\\\______\//\\\_\/\\\_______\/\\\_\/\\\\\\\\\\\\\\\_\/\\\_______\/\\\_ 
+	print r'''____/\\\\\\\\\______/\\\________/\\\__/\\\\\\\\\\\\\\\_____/\\\\\\\\\____
+ __/\\\///////\\\___\/\\\_______\/\\\_\/\\\///////////____/\\\\\\\\\\\\\__
+  _\/\\\_____\/\\\___\/\\\_______\/\\\_\/\\\______________/\\\/////////\\\_
+   _\/\\\\\\\\\\\/____\/\\\\\\\\\\\\\\\_\/\\\\\\\\\\\_____\/\\\_______\/\\\_
+    _\/\\\//////\\\____\/\\\/////////\\\_\/\\\///////______\/\\\\\\\\\\\\\\\_
+     _\/\\\____\//\\\___\/\\\_______\/\\\_\/\\\_____________\/\\\/////////\\\_
+      _\/\\\_____\//\\\__\/\\\_______\/\\\_\/\\\_____________\/\\\_______\/\\\_
+       _\/\\\______\//\\\_\/\\\_______\/\\\_\/\\\\\\\\\\\\\\\_\/\\\_______\/\\\_
         _\///________\///__\///________\///__\///////////////__\///________\///__
         '''
+	tree = ast.Definition('$main', ast.Function(ast.Args([]), [], ret='int'), True)
 	while True:
 		sys.stdout.write('rhea> ')
 		line = sys.stdin.readline()
 		if line == '':
 			print('\nGoodbye!')
 			sys.exit(0)
-		line = line.strip() + ' \n'
-		tree = parser.parse(line)
-		tree.eval(True)
-		call(['clang', '-o', 'result', 'tmp.c'])
+		line = line[:-1] + ' \n'
+		parser.loc = 0
+		tmptree = parser.parse_expr(line)
+		old = tree.value.get_last()
+		if isinstance(old, ast.Call):
+			if isinstance(old.args[0], ast.LiteralInt) or isinstance(old.args[0], ast.LiteralFloat) or isinstance(old.args[0], ast.Lookup):
+				tree.value.remove_last()
+			else:
+				tree.value.set_last(old.args[0])
+		if isinstance(tmptree, ast.Definition):
+			tree.value.append(tmptree)
+		elif tmptree is None:
+			continue
+		else:
+			if tmptree.type == 'void':
+				tree.value.append(tmptree)
+			else:
+				tree.value.append(ast.Call('System', 'print', [tmptree]))
+		codegen.gen_init(False)
+		tree.eval()
+		codegen.gen_close()
+		error_code = call(['clang', '-o', 'result', 'tmp.c'])
+		if error_code != 0:
+			raise RuntimeError("C compilation finished with error code")
 		#call(['rm', 'tmp.c'])
 		call(['./result'])
 
 source = ''
 for infile in args:
 	source += open(infile, 'r').read()
-	
+
 if verbose:
 	print('Rhea source:')
 	print(source)

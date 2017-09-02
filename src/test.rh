@@ -1,11 +1,14 @@
+# Test program in Rhea
+
 var foo = 2
 System print foo
 var bar = 2.4
 System print bar
-var q = 2.2 - 1.3
+val q = 2.2 - 1.3
 System print q
 System print bar
 System print 3.1 - 3.2
+
 System print 2.1 - 2
 System print 3 * 1.1
 System print 4 + 34

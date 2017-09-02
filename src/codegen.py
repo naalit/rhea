@@ -6,6 +6,7 @@ import parser
 
 c = helper.CFile('tmp.c')
 repl = False
+path = ''
 
 def line(number, source_file):
 	c.line(number, source_file)
@@ -16,13 +17,13 @@ def gen_init(is_repl):
 	repl = is_repl
 	c = helper.CFile('tmp.c')
 	if repl:
-		c['#include "repl.h"']
-	c['#include "runtime.h"']
+		c['#include "' + path + '/repl.h"']
+	c['#include "' + path + '/runtime.h"']
 
 def gen_assign(name, value):
 	c(name + ' = ')
 	value.eval()
-	
+
 def mangle(name):
 	fun_name = name.replace('.', '$p')
 	fun_name = fun_name.replace('*', '$m')
@@ -31,11 +32,11 @@ def mangle(name):
 	fun_name = fun_name.replace('-', '$s')
 #	fun_name = fun_name.replace('*', '$t')
 	return fun_name
-	
+
 def gen_lookup(name):
 	c(name)
-	
-def gen_define(name, value):
+
+def gen_define(name, value, val = False):
 	if isinstance(value, ast.Function):
 		fun_name = mangle(name)
 		if(name[0] == '$'):
@@ -43,18 +44,20 @@ def gen_define(name, value):
 		c[str(value.return_type) + ' ' + fun_name + ' (' + str(value.arguments) + ') ']
 		value.eval()
 	else:
+		if val:
+			c('const ')
 		c(str(value.type) + ' ' + name + ' = ')
 		value.eval()
-		
+
 def gen_literal(value):
 	c(value)
-		
+
 def gen_block(body):
 	with c.block(''):
 		for i in body:
 			i.eval()
 			gen_end()
-	
+
 def gen_call(subject, name, arguments):
 	nsubject = subject
 	instance = False
@@ -70,7 +73,7 @@ def gen_call(subject, name, arguments):
 				isubject = ast.LiteralFloat(subject)
 		else:
 			nsubject = parser.index[nsubject].type
-			isubject = parser.index[subject]
+			isubject = subject
 		instance = True
 	fn_name = ''
 	for i in arguments:
@@ -79,8 +82,6 @@ def gen_call(subject, name, arguments):
 		fn_name += mangle(nsubject) + '$i' + mangle(name)
 	else:
 		fn_name += mangle(nsubject) + '$x' + mangle(name)
-	if repl:
-		c('printf("%g", ')
 	c(fn_name + ' (')
 	if not instance:
 		try:
@@ -91,15 +92,13 @@ def gen_call(subject, name, arguments):
 			c(', ')
 			i.eval()
 	else:
-		isubject.eval()
+		c(subject)#isubject.eval()
 		for i in arguments:
 			c(', ')
 			i.eval()
 	c(')')
-	if repl:
-		c(')')
 def gen_end():
 	c[';']
-	
+
 def gen_close():
 	c.close()

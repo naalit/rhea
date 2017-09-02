@@ -5,8 +5,9 @@ import re
 
 loc = 0
 index = {}
+vals = {}
 rets = {'System print': 'void', 'Float -': 'Float', 'Float *': 'Float', 'Float +': 'Float', 'Float /': 'Float', 'Int -': 'Int', 'Int *': 'Int', 'Int +': 'Int', 'Int /': 'Int'}
-tree = ast.Program([ast.Definition('$main', ast.Function(ast.Args([]), [], ret='int'))])
+tree = ast.Program([ast.Definition('$main', ast.Function(ast.Args([]), [], ret='int'), True)])
 funcIndex = 0
 buff = '' # For names and values
 
@@ -19,7 +20,7 @@ def parse(source):
 		except ValueError:
 			break
 	return tree
-		
+
 def get(string, index, default):
 	try:
 		return string[index]
@@ -37,7 +38,7 @@ def skip_whitespace(source, iloc, n = False):
 			q = get(source, iloc, 'null')
 			iloc += 1
 	return iloc - 1
-	
+
 def isnumber(value):
 	try:
 		float(value)
@@ -45,9 +46,9 @@ def isnumber(value):
 		return False
 	else:
 		return True
-		
+
 def isname(value):
-	return re.match(r'[^\t\n \$0-9]+', value)
+	return re.match(r'[^#\t\n \$0-9]+', value)
 
 def tok(source):
 	global loc
@@ -63,12 +64,28 @@ def tok(source):
 		except:
 			name += ' '
 		iloc += 1
-		if name == 'var':
+		if name[0] == '#':
+			while source[iloc] != '\n':
+				iloc += 1
+			iloc += 1
+			try:
+				iloc = skip_whitespace(source, iloc, True)
+				source[iloc]
+			except:
+				return 'nothing'
+			name = ''
+		elif name == 'var':
 			q = get(source, iloc, ' ')
 			if (q != '\t' and q != ' ' and q != '\n'):
 				continue
 			loc = skip_whitespace(source, iloc)
 			return 'var'
+		elif name == 'val':
+			q = get(source, iloc, ' ')
+			if (q != '\t' and q != ' ' and q != '\n'):
+				continue
+			loc = skip_whitespace(source, iloc)
+			return 'val'
 		elif name == 'fun':
 			q = get(source, iloc, ' ')
 			if (q != '\t' and q != ' ' and q != '\n'):
@@ -99,8 +116,8 @@ def raise_error(source):
 		raise ValueError('hi')
 	else:
 		raise RuntimeError('Error at location ' + str(loc) + ':\n\t' + source[loc:loc+10])
-	
-def parse_definition(source):
+
+def parse_definition(source, val = False):
 	global loc
 	iloc = loc
 	name = source[iloc]
@@ -114,16 +131,16 @@ def parse_definition(source):
 	loc = iloc
 #	if(name.strip() == name):
 #		raise_error(source)
-		
+
 	name = name.strip()
-	
+
 	if (source[loc] != '='):
 		raise_error(source)
 	loc += 1
-	
-	return ast.Definition(name, parse_expr(source))
+
+	return ast.Definition(name, parse_expr(source), val)
 #	tree[funcIndex].value.append(ast.Definition('bob', ast.LiteralFloat('2.4')))
-	
+
 def parse_name_expr(source):
 	global loc
 	if (source[loc] == '='): # Whitespace already skipped
@@ -141,7 +158,7 @@ def parse_name_expr(source):
 		return ast.Call(name, name2, [parse_expr(source)])
 #		except:
 #			return ast.Call(name, name2, [])
-		
+
 def parse_number_expr(source):
 	if isname(source[loc]): # Call, probably
 		name = buff
@@ -154,23 +171,30 @@ def parse_number_expr(source):
 		return ast.LiteralInt(buff)
 	except:
 		return ast.LiteralFloat(buff)
-	
+
 def parse_function(source):
 	pass
-	
-def parse_top_level(source):	
-	global loc	
+
+def do_nothing(source):
+	return None
+
+def parse_top_level(source):
+	global loc
 	loc = skip_whitespace(source, loc, True)
 	return parse_expr(source)
-		
+
+def parse_val(source):
+	return parse_definition(source, True)
+
 def parse_expr(source):
 	options = {
 		'var' 		:	parse_definition,
+		'val'		:	parse_val,
 		'name' 		:	parse_name_expr,
 		'number'	:	parse_number_expr,
 		'fun'		:	parse_function,
+		'nothing'	:	do_nothing,
 		'error'		:	raise_error,
 	}
 	q = tok(source)
 	return options[q](source)
-
