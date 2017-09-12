@@ -1,200 +1,184 @@
-# Parser for Rhea
-
-import ast
 import re
+import sys
+import ast
 
-loc = 0
-index = {}
-vals = {}
-rets = {'System print': 'void', 'Float -': 'Float', 'Float *': 'Float', 'Float +': 'Float', 'Float /': 'Float', 'Int -': 'Int', 'Int *': 'Int', 'Int +': 'Int', 'Int /': 'Int'}
-tree = ast.Program([ast.Definition('$main', ast.Function(ast.Args([]), [], ret='int'), True)])
-funcIndex = 0
-buff = '' # For names and values
+def isfloat(value):
+    try:
+        float(value)
+    except ValueError:
+        return False
+    else:
+        return True
 
-def parse(source):
-	while True:
-		try:
-			q = parse_top_level(source)
-			#raise_error(source)
-			tree[funcIndex].value.append(q)
-		except ValueError:
-			break
-	return tree
-
-def get(string, index, default):
-	try:
-		return string[index]
-	except:
-		return default
-
-def skip_whitespace(source, iloc, n = False):
-	q = ' '
-	if not n:
-		while (q == '\t' or q == ' '):
-			q = get(source, iloc, 'null')
-			iloc += 1
-	else:
-		while (q == '\t' or q == ' ' or q == '\n'):
-			q = get(source, iloc, 'null')
-			iloc += 1
-	return iloc - 1
-
-def isnumber(value):
-	try:
-		float(value)
-	except ValueError:
-		return False
-	else:
-		return True
+def isint(value):
+    try:
+        int(value)
+    except ValueError:
+        return False
+    else:
+        return True
 
 def isname(value):
-	return re.match(r'[^#\t\n \$0-9]+', value)
+    return bool(re.match(r'[^#\t\n \$0-9]+', value))
 
-def tok(source):
-	global loc
-	global buff
-	iloc = loc
-	name = ''
-#	print(':' + source[iloc])
-	iloc = skip_whitespace(source, iloc)
-#	print(':' + source[iloc])
-	while True:
-		try:
-			name += source[iloc]
-		except:
-			name += ' '
-		iloc += 1
-		if name[0] == '#':
-			while source[iloc] != '\n':
-				iloc += 1
-			iloc += 1
-			try:
-				iloc = skip_whitespace(source, iloc, True)
-				source[iloc]
-			except:
-				return 'nothing'
-			name = ''
-		elif name == 'var':
-			q = get(source, iloc, ' ')
-			if (q != '\t' and q != ' ' and q != '\n'):
-				continue
-			loc = skip_whitespace(source, iloc)
-			return 'var'
-		elif name == 'val':
-			q = get(source, iloc, ' ')
-			if (q != '\t' and q != ' ' and q != '\n'):
-				continue
-			loc = skip_whitespace(source, iloc)
-			return 'val'
-		elif name == 'fun':
-			q = get(source, iloc, ' ')
-			if (q != '\t' and q != ' ' and q != '\n'):
-				continue
-			loc = skip_whitespace(source, iloc)
-			return 'fun'
-		elif isnumber(name):
-			q = get(source, iloc, ' ')
-			if (q != '\t' and q != ' ' and q != '\n'):
-				continue
-			loc = skip_whitespace(source, iloc)
-			buff = name.strip()
-			return 'number'
-		elif isname(name):
-			q = get(source, iloc, ' ')
-			if (q != '\t' and q != ' ' and q != '\n'):
-				continue
-			loc = skip_whitespace(source, iloc)
-			buff = name.strip()
-			return 'name'
-		elif name.strip() != name:
-			return 'error'
+def iskeyword(name):
+    return name == 'var' or name == 'val' or name == 'actor' or name == 'class'
 
-def raise_error(source):
-	try:
-		source[loc]
-	except:
-		raise ValueError('hi')
-	else:
-		raise RuntimeError('Error at location ' + str(loc) + ':\n\t' + source[loc:loc+10])
+class Parser(object):
+    def __init__(self):
+        self.source = ''
+        self.indent = 0
+        self.loc = 0
+        self.iloc = 0 # Sort of a tentative location. We save it for error reporting, but it's possible we're trying to parse something that's not there, in which case we'll go back to `loc`.
 
-def parse_definition(source, val = False):
-	global loc
-	iloc = loc
-	name = source[iloc]
-	while(isname(name)):
-		iloc += 1
-		name += source[iloc]
-		if(name.strip() != name):
-			iloc = skip_whitespace(source, iloc)
-			break
+    def isalone(self):
+        return self.source[self.loc].isspace()
 
-	loc = iloc
-#	if(name.strip() == name):
-#		raise_error(source)
+    def parse(self, source):
+        self.source = source
+        tree = ast.Program([])
+        while True:
+            tree.append(self.parse_expr())
+            self.skip_indent()
+        return tree
 
-	name = name.strip()
+    def skip_line(self):
+        while self.source[self.loc] != '\n':
+            self.loc += 1
+        self.loc += 1
 
-	if (source[loc] != '='):
-		raise_error(source)
-	loc += 1
+    def skip_whitespace(self): # Doesn't skip newlines, those are important
+        while self.source[self.loc] == ' ' or self.source[self.loc] == '\t':
+            self.loc += 1
 
-	return ast.Definition(name, parse_expr(source), val)
-#	tree[funcIndex].value.append(ast.Definition('bob', ast.LiteralFloat('2.4')))
+    def parse_name(self, name): # We see a name at the start of an expression! Now what?
+        char = self.source[self.loc]
+        next_name = char
+        self.iloc = self.loc
+        while True:
+            self.iloc += 1
+            char = self.source[self.iloc]
+            next_name += char
+            print next_name + str(self.isalone())
+            if self.isalone():
+                if isname(next_name) and not iskeyword(next_name): # Message send
+                    self.loc = self.iloc
+                    args = []
+                    self.skip_whitespace()
+                    while self.source[self.loc] != '\n' and self.source[self.loc] != ')' and self.source[self.loc] != '#':
+                        print next_name
+                        args += self.parse_expr()
+                        self.skip_whitespace()
+                    try:
+                        args.remove(None)
+                    except:
+                        pass
+                    return ast.Send(subject=name, callee=next_name, args=args)
+                else: # Lookup
+                    return ast.Lookup(name)
 
-def parse_name_expr(source):
-	global loc
-	if (source[loc] == '='): # Whitespace already skipped
-		loc += 1
-		name = buff
-		return ast.Assignment(name, parse_expr(source))
-	elif not isname(source[loc]): # Variable
-		return ast.Lookup(buff)
-	else: # So it's a call
-		name = buff
-		q = tok(source)
-		assert q == 'name'
-		name2 = buff
-#		try:
-		return ast.Call(name, name2, [parse_expr(source)])
-#		except:
-#			return ast.Call(name, name2, [])
+    def parse_var(self):
+        return self.parse_initialize(False)
 
-def parse_number_expr(source):
-	if isname(source[loc]): # Call, probably
-		name = buff
-		q = tok(source)
-		assert q == 'name'
-		name2 = buff
-		return ast.Call(name, name2, [parse_expr(source)])
-	try:
-		int(buff)
-		return ast.LiteralInt(buff)
-	except:
-		return ast.LiteralFloat(buff)
+    def parse_val(self):
+        return self.parse_initialize(True)
 
-def parse_function(source):
-	pass
+    def parse_initialize(self, val):
+        name = ''
+        while True:
+            self.loc += 1
+            char = self.source[self.loc]
+            name += char
+            if self.isalone():
+                if not isname(name):
+                    print("Parse Error: 'var' or 'val' not followed by a name at location " + str(self.loc) + ': \n' + self.source[self.loc:self.loc+20])
+                    sys.exit(1)
+                self.skip_whitespace()
+                if self.source[self.loc] != '=':
+                    return ast.Declaration(val, name) # TODO: Type
+                self.loc += 1
+                self.skip_whitespace()
+                expr = self.parse_expr()
+                ast.index[name] = expr
+                ast.vals[name] = val
+                return ast.Initialization(val, name, expr)
 
-def do_nothing(source):
-	return None
+    def skip_indent(self): # Returns whether the required indent was reached
+        current_indent = 0
+        while current_indent < self.indent:
+            if self.source[self.loc] == '\t':
+                current_indent += 1
+                self.loc += 1
+                continue
+            elif self.source[self.loc] == ' ':
+                for i in range(4):
+                    if self.source[self.loc == ' ']:
+                        self.loc += 1
+                    else:
+                        print('Parse Error: space indent not a multiple of four at location ' + str(self.loc) + ': \n' + self.source[self.loc:self.loc+20])
+                        sys.exit(1)
+                current_indent += 1
+                continue
+            elif self.source[self.loc] == '\n':
+                current_indent = 0
+                self.loc += 1
+                continue
+            else:
+                return False
+        return True
 
-def parse_top_level(source):
-	global loc
-	loc = skip_whitespace(source, loc, True)
-	return parse_expr(source)
+    def parse_actor(self):
+        print 'Got here, at least'
+        self.skip_whitespace()
+        if not self.source[self.loc] == '\n':
+            print("Parse Error: 'actor' followed by something else that shouldn't be there at location " + str(self.loc) + ': \n' + self.source[self.loc:self.loc+20])
+            sys.exit(1)
+        self.loc += 1
+        self.indent = 1
+        body = []
+        while self.skip_indent(): # That elegance is why skip_indent returns like it does
+            current_expr = self.parse_expr()
+            if isinstance(current_expr, ast.Actor):
+                print('Parse Error: actor definition not allowed inside of another actor definition at location ' + str(self.loc) + ': \n' + self.source[self.loc:self.loc+20])
+                sys.exit(1)
+            body += [current_expr]
+        self.indent = 0
+        return ast.Actor(body)
 
-def parse_val(source):
-	return parse_definition(source, True)
-
-def parse_expr(source):
-	options = {
-		'var' 		:	parse_definition,
-		'val'		:	parse_val,
-		'name' 		:	parse_name_expr,
-		'number'	:	parse_number_expr,
-		'fun'		:	parse_function,
-		'nothing'	:	do_nothing,
-		'error'		:	raise_error,
-	}
-	q = tok(source)
-	return options[q](source)
+    def parse_expr(self, comments_allowed=True):
+        self.skip_whitespace()
+        char = ''
+        print(char)
+        name = char
+        while True:
+            char = self.source[self.loc]
+            self.loc += 1
+            name += char
+            print(name)
+            if char == '#':
+                if comments_allowed:
+                    print('Skipping comment')
+                    name = ''
+                    self.skip_line()
+                else:
+                    return None
+            if self.isalone():
+                name = name.strip()
+                print name + ' is alone'
+                if isint(name):
+                    return ast.IntLiteral(name)
+                elif isfloat(name):
+                    return ast.FloatLiteral(name)
+                elif name == 'actor':
+                    return self.parse_actor()
+                elif name == 'class':
+                    return self.parse_class()
+                elif name == 'var':
+                    return self.parse_var()
+                elif name == 'val':
+                    return self.parse_val()
+                elif isname(name):
+                    return self.parse_name(name)
+                else:
+                    print('Parse Error: unrecognized token at location ' + str(self.loc) + ': \n' + self.source[self.loc:self.loc+20])
+                    sys.exit(1)

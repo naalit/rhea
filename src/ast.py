@@ -3,6 +3,10 @@
 from codegen import *
 import parser
 
+anon_actor_num = 0
+index = {}
+vals = {}
+
 class Void:
 	pass
 
@@ -23,7 +27,7 @@ class Args:
 class Lookup:
 	def __init__(self, name):
 		self.name = name
-		self.type = parser.index[name].type
+		self.type = index[name].type
 
 	def __str__(self):
 		return self.name
@@ -72,14 +76,14 @@ class Function:
 	def eval(self):
 		gen_block(self.body)
 
-class Definition:
-	def __init__(self, name, value, val):
+class Initialization:
+	def __init__(self, val, name, value):
 		self.name = name
 		self.value = value
 		self.type = value.type
 		self.val = val
-		parser.index[name] = value
-		parser.vals[name] = val
+		index[name] = value
+		vals[name] = val
 
 	def eval(self):
 		gen_define(self.name, self.value, self.val)
@@ -93,7 +97,20 @@ class Assignment:
 	def eval(self):
 		gen_assign(self.name, self.value)
 
-class LiteralInt:
+class Actor:
+	def __init__(self, body=[]):
+		global anon_actor_num
+		self.body = body
+		self.magic_number = anon_actor_num
+		anon_actor_num += 1
+
+	def append(self, expr):
+		self.body.append(expr)
+
+	def eval(self):
+		gen_actor(self.body)
+
+class IntLiteral:
 	def __init__(self, value):
 		self.value = value
 		self.type = 'Int'
@@ -101,7 +118,7 @@ class LiteralInt:
 	def eval(self):
 		gen_literal(self.value)
 
-class LiteralFloat:
+class FloatLiteral:
 	def __init__(self, value):
 		self.value = value
 		self.type = 'Float'
@@ -109,13 +126,14 @@ class LiteralFloat:
 	def eval(self):
 		gen_literal(self.value)
 
-class Call:
-	def __init__(self, subject, callee, args):
-		self.callee = callee
+class Send:
+	def __init__(self, subject, message, args):
+		self.message = message
 		self.subject = subject
 		self.args = args
+		print(subject + '.' + callee + '(' + str(args) + ')')
 		nsubject = subject
-		if not subject[0].isupper():
+		if not (subject[0].isupper() or subject[0] == '$'):
 			if(parser.isnumber(nsubject)):
 				try:
 					int(nsubject)
@@ -127,14 +145,21 @@ class Call:
 		self.type = parser.rets[nsubject + ' ' + callee]
 
 	def eval(self):
-		gen_call(self.subject, self.callee, self.args)
+		gen_send(self.subject, self.message, self.args)
+
+class ActorStart: # This is a backend thing only created by the Program class
+	def __init__(self, actor):
+		self.actor_number = actor.magic_number
+
+	def eval(self):
+		gen_send('$z', str(self.actor_number), [])
 
 class Program: # Top level
 	def __init__(self, array_of_instructions):
 		self.body = array_of_instructions
 
 	def append(self, statement):
-		self.body.append(statement)
+		self.body.insert(-1, statement)
 		return self
 
 	def __getitem__(self, index):
@@ -142,8 +167,16 @@ class Program: # Top level
 
 	def eval(self, repl=False):
 		gen_init(repl)
+		actors = []
 		for i in self.body:
 			i.eval()
-			if(i.value.type != 'Function'):
-				gen_end()
+			if isinstance(i, Actor):
+				actors += [i]
+			if isinstance(i, Initialization):
+				if(i.value.type != 'Function'):
+					gen_end()
+		main = Function([], [], ret=int)
+		for i in actors:
+			main.append(ActorStart(i))
+		gen_define('$main', main)
 		gen_close()

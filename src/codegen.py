@@ -25,6 +25,8 @@ def gen_assign(name, value):
 	value.eval()
 
 def mangle(name):
+	if(name[0] == '$'):
+		return name[1:]
 	fun_name = name.replace('.', '$p')
 	fun_name = fun_name.replace('*', '$m')
 	fun_name = fun_name.replace('/', '$d')
@@ -39,8 +41,6 @@ def gen_lookup(name):
 def gen_define(name, value, val = False):
 	if isinstance(value, ast.Function):
 		fun_name = mangle(name)
-		if(name[0] == '$'):
-			fun_name = fun_name[1:]
 		c[str(value.return_type) + ' ' + fun_name + ' (' + str(value.arguments) + ') ']
 		value.eval()
 	else:
@@ -52,17 +52,20 @@ def gen_define(name, value, val = False):
 def gen_literal(value):
 	c(value)
 
+def gen_actor(body):
+	gen_define('$z' + str(parser.anon_actor_num), ast.Function(ast.Args([]), body, ret = 'void'), True)
+
 def gen_block(body):
 	with c.block(''):
 		for i in body:
 			i.eval()
 			gen_end()
 
-def gen_call(subject, name, arguments):
+def gen_send(subject, name, arguments):
 	nsubject = subject
 	instance = False
 	isubject = None
-	if not subject[0].isupper():
+	if not (subject[0].isupper() or subject[0] == '$'):
 		if(parser.isnumber(nsubject)):
 			try:
 				int(subject)
@@ -78,7 +81,9 @@ def gen_call(subject, name, arguments):
 	fn_name = ''
 	for i in arguments:
 		fn_name += i.type + '$_'
-	if instance:
+	if(subject[0] == '$'):
+		fn_name += mangle(nsubject) + mangle(name)
+	elif instance:
 		fn_name += mangle(nsubject) + '$i' + mangle(name)
 	else:
 		fn_name += mangle(nsubject) + '$x' + mangle(name)

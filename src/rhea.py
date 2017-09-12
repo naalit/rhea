@@ -13,6 +13,7 @@ codegen.path = os.path.dirname(os.path.realpath(__file__))
 verbose = False
 run = True
 args = sys.argv[1:]
+parserizer = parser.Parser()
 try:
 	if(args[0] == '-v'):
 		verbose = True
@@ -37,7 +38,7 @@ except IndexError:
        _\/\\\______\//\\\_\/\\\_______\/\\\_\/\\\\\\\\\\\\\\\_\/\\\_______\/\\\_
         _\///________\///__\///________\///__\///////////////__\///________\///__
         '''
-	tree = ast.Definition('$main', ast.Function(ast.Args([]), [], ret='int'), True)
+	tree = ast.Initialization('$main', ast.Function(ast.Args([]), [], ret='int'), True)
 	while True:
 		sys.stdout.write('rhea> ')
 		line = sys.stdin.readline()
@@ -45,8 +46,9 @@ except IndexError:
 			print('\nGoodbye!')
 			sys.exit(0)
 		line = line[:-1] + ' \n'
-		parser.loc = 0
-		tmptree = parser.parse_expr(line)
+		parserizer.loc = 0
+		parserizer.source = line
+		tmptree = parserizer.parse_expr()
 		old = tree.value.get_last()
 		if isinstance(old, ast.Call):
 			if isinstance(old.args[0], ast.LiteralInt) or isinstance(old.args[0], ast.LiteralFloat) or isinstance(old.args[0], ast.Lookup):
@@ -79,7 +81,7 @@ if verbose:
 	print('Rhea source:')
 	print(source)
 	print('Parsing...')
-tree = parser.parse(source)
+tree = parserizer.parse(source)
 if verbose:
 	print('Running codegen...')
 tree.eval()
