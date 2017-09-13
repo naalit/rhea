@@ -38,7 +38,7 @@ except IndexError:
        _\/\\\______\//\\\_\/\\\_______\/\\\_\/\\\\\\\\\\\\\\\_\/\\\_______\/\\\_
         _\///________\///__\///________\///__\///////////////__\///________\///__
         '''
-	tree = ast.Initialization('$main', ast.Function(ast.Args([]), [], ret='int'), True)
+	tree = ast.Initialization(True, '$main', ast.Function(ast.Args([]), [], ret='int'))
 	while True:
 		sys.stdout.write('rhea> ')
 		line = sys.stdin.readline()
@@ -50,12 +50,12 @@ except IndexError:
 		parserizer.source = line
 		tmptree = parserizer.parse_expr()
 		old = tree.value.get_last()
-		if isinstance(old, ast.Call):
-			if isinstance(old.args[0], ast.LiteralInt) or isinstance(old.args[0], ast.LiteralFloat) or isinstance(old.args[0], ast.Lookup):
+		if isinstance(old, ast.Send):
+			if isinstance(old.args[0], ast.IntLiteral) or isinstance(old.args[0], ast.FloatLiteral) or isinstance(old.args[0], ast.Lookup):
 				tree.value.remove_last()
 			else:
 				tree.value.set_last(old.args[0])
-		if isinstance(tmptree, ast.Definition):
+		if isinstance(tmptree, ast.Initialization):
 			tree.value.append(tmptree)
 		elif tmptree is None:
 			continue
@@ -63,7 +63,7 @@ except IndexError:
 			if tmptree.type == 'void':
 				tree.value.append(tmptree)
 			else:
-				tree.value.append(ast.Call('System', 'print', [tmptree]))
+				tree.value.append(ast.Send('System', 'print', [tmptree]))
 		codegen.gen_init(False)
 		tree.eval()
 		codegen.gen_close()

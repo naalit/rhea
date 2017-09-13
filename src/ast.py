@@ -6,6 +6,7 @@ import parser
 anon_actor_num = 0
 index = {}
 vals = {}
+rets = {'System print': 'void'}
 
 class Void:
 	pass
@@ -131,7 +132,7 @@ class Send:
 		self.message = message
 		self.subject = subject
 		self.args = args
-		print(subject + '.' + callee + '(' + str(args) + ')')
+		print(subject + '.' + message + '(' + str(args) + ')')
 		nsubject = subject
 		if not (subject[0].isupper() or subject[0] == '$'):
 			if(parser.isnumber(nsubject)):
@@ -142,7 +143,7 @@ class Send:
 					nsubject = 'Float'
 			else:
 				nsubject = parser.index[nsubject].type
-		self.type = parser.rets[nsubject + ' ' + callee]
+		self.type = rets[nsubject + ' ' + message]
 
 	def eval(self):
 		gen_send(self.subject, self.message, self.args)

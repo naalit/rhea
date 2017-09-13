@@ -32,7 +32,10 @@ class Parser(object):
         self.iloc = 0 # Sort of a tentative location. We save it for error reporting, but it's possible we're trying to parse something that's not there, in which case we'll go back to `loc`.
 
     def isalone(self):
-        return self.source[self.loc].isspace()
+        try:
+            return self.source[self.loc].isspace()
+        except:
+            return True # EOF
 
     def parse(self, source):
         self.source = source
@@ -52,13 +55,14 @@ class Parser(object):
             self.loc += 1
 
     def parse_name(self, name): # We see a name at the start of an expression! Now what?
+        self.skip_whitespace()
         char = self.source[self.loc]
         next_name = char
-        self.iloc = self.loc
+        self.iloc = self.loc + 1
         while True:
-            self.iloc += 1
             char = self.source[self.iloc]
             next_name += char
+            self.iloc += 1
             print next_name + str(self.isalone())
             if self.isalone():
                 if isname(next_name) and not iskeyword(next_name): # Message send
